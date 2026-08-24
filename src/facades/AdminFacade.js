@@ -237,6 +237,87 @@ class AdminFacade {
 
     return { success: true, message: 'Answer sheet deleted successfully' };
   }
+
+  async getEnrichedExams(filter = {}) {
+    const Exam = require('../models/entities/examModel');
+    const AnswerSheet = require('../models/entities/answerSheetModel');
+    const QuestionAllocation = require('../models/entities/questionAllocationModel');
+    const QuestionEvaluation = require('../models/entities/questionEvaluationModel');
+    const Faculty = require('../models/entities/facultyModel');
+
+    const exams = await Exam.find(filter).sort({ course: 1, subject: 1, semester: 1, section: 1 });
+    const enriched = await Promise.all(exams.map(async (exam) => {
+      const sheets = await AnswerSheet.find({ examId: exam._id });
+      const studentCount = sheets.length;
+
+      let evaluatedCount = 0;
+      for (const sheet of sheets) {
+        const evals = await QuestionEvaluation.find({ sheetId: sheet._id });
+        if (evals.length > 0 && evals.every(e => e.status === 'SUBMITTED' || e.status === 'LOCKED')) {
+          evaluatedCount++;
+        }
+      }
+
+      const allocations = await QuestionAllocation.find({ examId: exam._id }).populate('facultyId');
+      const facultyMap = new Map();
+      for (const alloc of allocations) {
+        if (alloc.facultyId) {
+          const fId = alloc.facultyId._id ? alloc.facultyId._id.toString() : alloc.facultyId.toString();
+          if (!facultyMap.has(fId)) {
+            facultyMap.set(fId, {
+              id: fId,
+              name: alloc.facultyId.name || 'Faculty',
+              email: alloc.facultyId.email || '',
+              department: alloc.facultyId.department || ''
+            });
+          }
+        }
+      }
+      const facultyList = Array.from(facultyMap.values());
+
+      return {
+        ...exam.toObject(),
+        studentCount,
+        evaluatedCount,
+        facultyList
+      };
+    }));
+
+    return enriched;
+  }
+
+  async bulkPublishExams(examIds, isPublished, performedBy) {
+    const Exam = require('../models/entities/examModel');
+    if (!Array.isArray(examIds) || examIds.length === 0) {
+      throw new Error('No exam IDs provided for bulk action');
+    }
+    const updateResult = await Exam.updateMany(
+      { _id: { $in: examIds } },
+      { $set: { isPublished } }
+    );
+    await AuditLogRepository.create({
+      action: isPublished ? 'BULK_PUBLISH_EXAMS' : 'BULK_UNPUBLISH_EXAMS',
+      performedBy,
+      details: `${isPublished ? 'Published' : 'Unpublished'} ${updateResult.modifiedCount} exams`
+    });
+    return { success: true, count: updateResult.modifiedCount };
+  }
+
+  async bulkDeleteExams(examIds, performedBy) {
+    if (!Array.isArray(examIds) || examIds.length === 0) {
+      throw new Error('No exam IDs provided for bulk deletion');
+    }
+    let deletedCount = 0;
+    for (const examId of examIds) {
+      try {
+        await this.deleteExam(examId, performedBy);
+        deletedCount++;
+      } catch (err) {
+        // continue with other exams
+      }
+    }
+    return { success: true, count: deletedCount };
+  }
 }
 
 module.exports = new AdminFacade();

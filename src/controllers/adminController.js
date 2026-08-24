@@ -207,11 +207,10 @@ router.post('/configuration/distribution', authMiddleware, async (req, res, next
   }
 });
 
-// List exams with optional filters
+// List exams with optional filters & enriched student/faculty metadata
 router.get('/exams', authMiddleware, async (req, res, next) => {
   try {
     const { course, subject, semester, section, examType } = req.query;
-    const ExamRepository = require('../repositories/ExamRepository');
     const filter = {};
     if (course) filter.course = course;
     if (subject) filter.subject = subject;
@@ -219,8 +218,28 @@ router.get('/exams', authMiddleware, async (req, res, next) => {
     if (section) filter.section = section;
     if (examType) filter.examType = examType;
 
-    const exams = await ExamRepository.findAll(filter);
+    const exams = await adminFacade.getEnrichedExams(filter);
     res.json({ success: true, data: exams });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/exams/bulk-publish', authMiddleware, async (req, res, next) => {
+  try {
+    const { examIds, isPublished } = req.body;
+    const result = await adminFacade.bulkPublishExams(examIds, Boolean(isPublished), req.user.email);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/exams/bulk-delete', authMiddleware, async (req, res, next) => {
+  try {
+    const { examIds } = req.body;
+    const result = await adminFacade.bulkDeleteExams(examIds, req.user.email);
+    res.json({ success: true, data: result });
   } catch (error) {
     next(error);
   }
