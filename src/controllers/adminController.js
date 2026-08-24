@@ -142,11 +142,17 @@ router.post('/upload-pdf', authMiddleware, async (req, res, next) => {
 
 router.post('/manual-entry', authMiddleware, async (req, res, next) => {
   try {
-    const entry = req.body;
-    if (!entry || !entry.registrationNumber || !entry.studentName || !entry.subject) {
-      throw new AppError('Registration number, student name, and subject are required', 400);
+    const payload = req.body;
+    const rows = Array.isArray(payload) ? payload : (payload.rows || [payload]);
+    if (!rows || rows.length === 0) {
+      throw new AppError('No student records provided', 400);
     }
-    const result = await adminFacade.importRows([entry]);
+    for (const entry of rows) {
+      if (!entry.registrationNumber || !entry.studentName || !entry.subject) {
+        throw new AppError(`Registration number, student name, and subject are required for all students (found incomplete record: ${entry.studentName || entry.registrationNumber || 'Unknown'})`, 400);
+      }
+    }
+    const result = await adminFacade.importRows(rows);
     res.json({ success: true, data: result });
   } catch (error) {
     next(error);
