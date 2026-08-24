@@ -77,7 +77,7 @@ export default function StudentReportPage() {
         <div className="dash-stat-card" style={{ '--accent-color': fullyEval ? '#16a34a' : '#d97706' }}>
           <div className="dash-stat-body">
             <div className="dash-stat-value" style={{ fontSize: '1rem', paddingTop: '4px' }}>
-              {fullyEval ? '✓ Complete' : '⏳ In Progress'}
+              {fullyEval ? 'Complete' : 'In Progress'}
             </div>
             <div className="dash-stat-label">Evaluation Status</div>
             <div className="dash-stat-sub">{report.evaluations?.length} questions</div>

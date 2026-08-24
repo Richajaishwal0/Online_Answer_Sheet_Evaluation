@@ -99,10 +99,13 @@ class FacultyService {
         const exam = sheet ? await ExamRepository.findById(sheet.examId) : null;
         sheets[sheetId] = {
           sheetId: sheet?._id || evaluation.sheetId,
+          examId: exam?._id || null,
           studentName: student?.name || 'Unknown',
           registrationNumber: student?.registrationNumber || 'N/A',
           examName: exam ? `${exam.course} / ${exam.subject}` : 'Unknown',
           examContext: exam ? `${exam.semester} ${exam.section} ${exam.examType}` : '',
+          finalSubmittedToAdmin: Boolean(exam?.finalSubmittedToAdmin),
+          isPublished: Boolean(exam?.isPublished),
           questionNumbers: [],
           statuses: [],
           pdfUrl: sheet?.pdfUrl || ''
@@ -132,10 +135,13 @@ class FacultyService {
 
       return {
         sheetId: item.sheetId,
+        examId: item.examId,
         studentName: item.studentName,
         registrationNumber: item.registrationNumber,
         examName: item.examName,
         examContext: item.examContext,
+        finalSubmittedToAdmin: item.finalSubmittedToAdmin,
+        isPublished: item.isPublished,
         questionRange,
         status,
         evaluationSummary: summary,

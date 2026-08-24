@@ -20,12 +20,21 @@ class ImportService {
     this.equalStrategy = new EqualDistributionStrategy();
   }
 
-  async importFromExcel(fileBuffer) {
+  async parseExcel(fileBuffer) {
     if (!fileBuffer) {
       throw new AppError('No file provided', 400);
     }
-
     const rows = await this.excelAdapter.read(fileBuffer);
+    if (!rows || rows.length === 0) {
+      throw new AppError('Excel file is empty or contains no readable data', 400);
+    }
+    return rows;
+  }
+
+  async importRows(rows) {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new AppError('No data rows provided for import', 400);
+    }
 
     for (const row of rows) {
       const student = await this.ensureStudent(row);
@@ -56,7 +65,12 @@ class ImportService {
     await dashboardObserver.onImportCompleted();
     await auditObserver.onEvent('IMPORT', 'ADMIN', 'Excel import completed');
 
-    return { success: true, message: 'Import completed successfully' };
+    return { success: true, message: `Import completed successfully (${rows.length} records processed)` };
+  }
+
+  async importFromExcel(fileBuffer) {
+    const rows = await this.parseExcel(fileBuffer);
+    return this.importRows(rows);
   }
 
   async ensureStudent(row) {

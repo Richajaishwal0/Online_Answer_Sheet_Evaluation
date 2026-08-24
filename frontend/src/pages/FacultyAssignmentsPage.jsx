@@ -49,16 +49,16 @@ export default function FacultyAssignmentsPage() {
 
   useEffect(() => { load(); }, []);
 
-  // Group items by examId for course handling controls
+  // Group items by examId for course handling controls (each subject is a separate exam)
   const examGroups = useMemo(() => {
     return items.reduce((acc, item) => {
-      const key = item.examId || 'unknown';
+      const key = item.examId ? item.examId.toString() : `unknown-${item.examName}`;
       if (!acc[key]) {
         acc[key] = {
           examId: item.examId,
           examName: item.examName,
-          finalSubmittedToAdmin: item.finalSubmittedToAdmin,
-          isPublished: item.isPublished,
+          finalSubmittedToAdmin: item.finalSubmittedToAdmin ?? false,
+          isPublished: item.isPublished ?? false,
           sheets: []
         };
       }
@@ -125,8 +125,8 @@ export default function FacultyAssignmentsPage() {
         <p>Evaluate student answer sheets, perform Final Submit to Admin, publish results to students, and export AUMS Excel spreadsheets.</p>
       </div>
 
-      {actionMessage && <div className="alert alert-success">✓ {actionMessage}</div>}
-      {errorMessage && <div className="alert alert-error">⚠ {errorMessage}</div>}
+      {actionMessage && <div className="alert alert-success">{actionMessage}</div>}
+      {errorMessage && <div className="alert alert-error">{errorMessage}</div>}
 
       {loading ? (
         <div className="card"><p>Loading assignments...</p></div>
@@ -163,7 +163,7 @@ export default function FacultyAssignmentsPage() {
                   onClick={() => handleTogglePublish(group.examId)}
                   style={{ opacity: group.finalSubmittedToAdmin ? 0.5 : 1, cursor: group.finalSubmittedToAdmin ? 'not-allowed' : 'pointer' }}
                 >
-                  {group.isPublished ? 'Unpublish Student Review ↩' : 'Publish for Student Review 👁'}
+                  {group.isPublished ? 'Unpublish Student Review' : 'Publish for Student Review'}
                 </button>
 
                 {/* Step 3: Submit to Admin (DISABLED until Publish for Student Review is completed) */}
@@ -175,7 +175,7 @@ export default function FacultyAssignmentsPage() {
                   style={{ opacity: (group.finalSubmittedToAdmin || !group.isPublished) ? 0.5 : 1, cursor: (group.finalSubmittedToAdmin || !group.isPublished) ? 'not-allowed' : 'pointer' }}
                   title={!group.isPublished ? 'You must Publish for Student Review first before submitting to Admin' : ''}
                 >
-                  {group.finalSubmittedToAdmin ? 'Submitted to Admin 🔒' : 'Submit to Admin 🔒'}
+                  {group.finalSubmittedToAdmin ? 'Submitted to Admin' : 'Submit to Admin'}
                 </button>
 
                 {/* Step 4: Export AUMS Excel (DISABLED until Submit to Admin is completed) */}
@@ -187,7 +187,7 @@ export default function FacultyAssignmentsPage() {
                   style={{ opacity: !group.finalSubmittedToAdmin ? 0.5 : 1, cursor: !group.finalSubmittedToAdmin ? 'not-allowed' : 'pointer' }}
                   title={!group.finalSubmittedToAdmin ? 'You must Submit marks to Admin first before downloading Excel report' : ''}
                 >
-                  Export AUMS Excel (.xlsx) 📥
+                  Export AUMS Excel (.xlsx)
                 </button>
               </div>
             </div>
@@ -223,7 +223,7 @@ export default function FacultyAssignmentsPage() {
                         className="btn btn-primary btn-sm"
                         onClick={() => navigate(`/faculty/evaluate/${item.sheetId}`)}
                       >
-                        Open Sheet ➔
+                        Open Sheet
                       </button>
                     </td>
                   </tr>

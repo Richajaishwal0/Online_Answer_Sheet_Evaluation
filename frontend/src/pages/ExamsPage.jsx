@@ -120,7 +120,7 @@ export default function ExamsPage() {
                         className="btn btn-sm btn-danger"
                         onClick={() => handleDeleteExam(exam._id, `${exam.course} ${exam.subject} Sem ${exam.semester} Sec ${exam.section}`)}
                       >
-                        Delete Exam 🗑
+                        Delete Exam
                       </button>
                     </td>
                   </tr>

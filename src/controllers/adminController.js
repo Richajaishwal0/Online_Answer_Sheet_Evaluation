@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const adminFacade = require('../facades/AdminFacade');
 const authMiddleware = require('../middleware/authMiddleware');
@@ -63,12 +65,88 @@ router.get('/dashboard', authMiddleware, async (req, res, next) => {
   }
 });
 
-router.post('/excel/upload', authMiddleware, async (req, res, next) => {
+router.post('/excel/preview', authMiddleware, async (req, res, next) => {
   try {
     if (!req.file) {
       throw new AppError('Excel file is required', 400);
     }
+    const rows = await adminFacade.previewExcel(req.file.buffer);
+    res.json({
+      success: true,
+      data: {
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
+        rowCount: rows.length,
+        rows
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/excel/confirm', authMiddleware, async (req, res, next) => {
+  try {
+    const { rows } = req.body || {};
+    if (!rows || !Array.isArray(rows) || rows.length === 0) {
+      throw new AppError('No data rows provided for import', 400);
+    }
+    const result = await adminFacade.importRows(rows);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/excel/upload', authMiddleware, async (req, res, next) => {
+  try {
+    if (req.body && req.body.rows && Array.isArray(req.body.rows)) {
+      const result = await adminFacade.importRows(req.body.rows);
+      return res.json({ success: true, data: result });
+    }
+    if (!req.file) {
+      throw new AppError('Excel file is required', 400);
+    }
     const result = await adminFacade.importExcel(req.file.buffer);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/upload-pdf', authMiddleware, async (req, res, next) => {
+  try {
+    if (!req.file) {
+      throw new AppError('PDF file is required', 400);
+    }
+    const uploadsDir = path.join(__dirname, '..', '..', 'public', 'uploads', 'pdfs');
+    fs.mkdirSync(uploadsDir, { recursive: true });
+
+    const originalName = req.file.originalname || 'document.pdf';
+    const safeName = `${Date.now()}_${originalName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const filePath = path.join(uploadsDir, safeName);
+    fs.writeFileSync(filePath, req.file.buffer);
+
+    res.json({
+      success: true,
+      data: {
+        fileUrl: `uploads/pdfs/${safeName}`,
+        fileName: originalName,
+        fileSize: req.file.size
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/manual-entry', authMiddleware, async (req, res, next) => {
+  try {
+    const entry = req.body;
+    if (!entry || !entry.registrationNumber || !entry.studentName || !entry.subject) {
+      throw new AppError('Registration number, student name, and subject are required', 400);
+    }
+    const result = await adminFacade.importRows([entry]);
     res.json({ success: true, data: result });
   } catch (error) {
     next(error);

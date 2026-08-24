@@ -18,6 +18,14 @@ class AdminFacade {
     return dashboardService.getDashboard();
   }
 
+  async previewExcel(fileBuffer) {
+    return importService.parseExcel(fileBuffer);
+  }
+
+  async importRows(rows) {
+    return importService.importRows(rows);
+  }
+
   async importExcel(fileBuffer) {
     return importService.importFromExcel(fileBuffer);
   }
