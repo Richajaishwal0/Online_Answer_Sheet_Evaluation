@@ -91,7 +91,7 @@ class ImportService {
       const normalizedEmail = String(row.studentEmail).trim().toLowerCase();
       let user = await User.findOne({ email: normalizedEmail });
       if (!user) {
-        const pass = normalizedEmail.slice(0, 6);
+        const pass = 'std123';
         const hashedPassword = await bcrypt.hash(pass, 10);
         user = await User.create({
           role: 'STUDENT',
@@ -117,14 +117,19 @@ class ImportService {
       row.examType
     );
 
-    const paperPdf = (row.questionPaperPdfLink || '').replace(/^\/+/, '');
-    const keyPdf = (row.answerKeyPdfLink || '').replace(/^\/+/, '');
+    const paperPdf = (row.questionPaperPdfLink || row.questionPaperUrl || '').replace(/^\/+/, '');
+    const keyPdf = (row.answerKeyPdfLink || row.answerKeyUrl || '').replace(/^\/+/, '');
 
     if (!exam) {
-      const rawMarks = String(row.questionMarks || '')
-        .split(',')
-        .map((item) => Number(item.trim()))
-        .filter((value) => !Number.isNaN(value) && value > 0);
+      let rawMarks = [];
+      if (Array.isArray(row.questionWeightage) && row.questionWeightage.length > 0) {
+        rawMarks = row.questionWeightage;
+      } else if (row.questionMarks) {
+        rawMarks = String(row.questionMarks)
+          .split(',')
+          .map((item) => Number(item.trim()))
+          .filter((value) => !Number.isNaN(value) && value > 0);
+      }
 
       const examTypeLower = String(row.examType || '').toLowerCase();
       const defaultConvertedScale = (examTypeLower.includes('mid') || examTypeLower.includes('internal')) ? 20 : 30;
@@ -136,7 +141,7 @@ class ImportService {
         section: row.section,
         examType: row.examType,
         questionWeightage: rawMarks.length ? rawMarks : [10, 10, 10, 10, 10],
-        convertedScale: defaultConvertedScale,
+        convertedScale: row.convertedScale || defaultConvertedScale,
         questionPaperUrl: paperPdf,
         answerKeyUrl: keyPdf
       });
@@ -159,7 +164,7 @@ class ImportService {
 
     let user = await User.findOne({ email: facultyEmail });
     if (!user) {
-      const pass = facultyEmail.slice(0, 6);
+      const pass = 'faculty123';
       const hashedPassword = await bcrypt.hash(pass, 10);
       user = await User.create({
         role: 'FACULTY',

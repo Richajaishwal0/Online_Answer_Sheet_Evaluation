@@ -12,11 +12,6 @@ const QuestionAllocation = require('./src/models/entities/questionAllocationMode
 const QuestionEvaluation = require('./src/models/entities/questionEvaluationModel');
 const AuditLog = require('./src/models/entities/auditLogModel');
 
-// Helper to calculate password: first 6 characters of email
-function getFirst6CharPassword(email) {
-  return String(email || '').trim().slice(0, 6);
-}
-
 async function seed() {
   const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/online_valuation';
   console.log(`Connecting to MongoDB at ${mongoUri}...`);
@@ -39,9 +34,9 @@ async function seed() {
 
   console.log('Collections cleared. Seeding default data...');
 
-  // 1. Seed Admin User
+  // 1. Seed Admin User (Password: admin123)
   const adminEmail = 'admin1@gmail.com';
-  const adminPass = getFirst6CharPassword(adminEmail); // 'admin1'
+  const adminPass = 'admin123';
   const adminUser = await User.create({
     role: 'ADMIN',
     email: adminEmail,
@@ -50,13 +45,13 @@ async function seed() {
   });
   console.log(`Created Admin: ${adminEmail} (password: ${adminPass})`);
 
-  // 2. Seed Faculty Users & Entities
+  // 2. Seed Faculty Users & Entities (Password: faculty123)
+  const facultyPass = 'faculty123';
   const faculty1Email = 'dr.a01@gmail.com';
-  const faculty1Pass = getFirst6CharPassword(faculty1Email); // 'dr.a01'
   const userFac1 = await User.create({
     role: 'FACULTY',
     email: faculty1Email,
-    password: await bcrypt.hash(faculty1Pass, 10),
+    password: await bcrypt.hash(facultyPass, 10),
     name: 'Dr. A (DBMS & OS)'
   });
   const fac1 = await Faculty.create({
@@ -66,11 +61,10 @@ async function seed() {
   });
 
   const faculty2Email = 'dr.b01@gmail.com';
-  const faculty2Pass = getFirst6CharPassword(faculty2Email); // 'dr.b01'
   const userFac2 = await User.create({
     role: 'FACULTY',
     email: faculty2Email,
-    password: await bcrypt.hash(faculty2Pass, 10),
+    password: await bcrypt.hash(facultyPass, 10),
     name: 'Dr. B (DBMS)'
   });
   const fac2 = await Faculty.create({
@@ -79,7 +73,8 @@ async function seed() {
     email: faculty2Email
   });
 
-  // 3. Seed Student Users & Entities
+  // 3. Seed Student Users & Entities (Password: std123)
+  const studentPass = 'std123';
   const studentsData = [
     { email: 'student1@gmail.com', name: 'Rahul Sharma', regNo: 'CH.SC.U4CSE23003' },
     { email: 'student2@gmail.com', name: 'Ananya Roy', regNo: 'CH.SC.U4CSE23004' },
@@ -89,11 +84,10 @@ async function seed() {
 
   const studentEntities = [];
   for (const s of studentsData) {
-    const pass = getFirst6CharPassword(s.email); // 'studen'
     const sUser = await User.create({
       role: 'STUDENT',
       email: s.email,
-      password: await bcrypt.hash(pass, 10),
+      password: await bcrypt.hash(studentPass, 10),
       name: s.name
     });
 
@@ -246,15 +240,15 @@ async function seed() {
   console.log('\n======================================================');
   console.log('🎉 DATABASE SEEDED SUCCESSFULLY!');
   console.log('======================================================');
-  console.log('Role       | Email                 | Password (1st 6 chars)');
+  console.log('Role       | Email                 | Password');
   console.log('-----------+-----------------------+----------------------');
   console.log(`ADMIN      | ${adminEmail}        | ${adminPass}`);
-  console.log(`FACULTY    | ${faculty1Email}         | ${faculty1Pass}`);
-  console.log(`FACULTY    | ${faculty2Email}         | ${faculty2Pass}`);
-  console.log(`STUDENT 1  | student1@gmail.com   | studen (Reg: CH.SC.U4CSE23003)`);
-  console.log(`STUDENT 2  | student2@gmail.com   | studen (Reg: CH.SC.U4CSE23004)`);
-  console.log(`STUDENT 3  | student3@gmail.com   | studen (Reg: CH.SC.U4CSE23005)`);
-  console.log(`STUDENT 4  | student4@gmail.com   | studen (Reg: CH.SC.U4CSE23006)`);
+  console.log(`FACULTY    | ${faculty1Email}         | ${facultyPass}`);
+  console.log(`FACULTY    | ${faculty2Email}         | ${facultyPass}`);
+  console.log(`STUDENT 1  | student1@gmail.com   | ${studentPass} (Reg: CH.SC.U4CSE23003)`);
+  console.log(`STUDENT 2  | student2@gmail.com   | ${studentPass} (Reg: CH.SC.U4CSE23004)`);
+  console.log(`STUDENT 3  | student3@gmail.com   | ${studentPass} (Reg: CH.SC.U4CSE23005)`);
+  console.log(`STUDENT 4  | student4@gmail.com   | ${studentPass} (Reg: CH.SC.U4CSE23006)`);
   console.log('======================================================\n');
 
   await mongoose.disconnect();

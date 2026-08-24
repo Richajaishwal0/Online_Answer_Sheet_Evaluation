@@ -25,7 +25,7 @@ export default function StudentLoginPage() {
   return (
     <AuthLayout
       roleTag="Student Portal"
-      hint="student1@gmail.com  ·  studen"
+      hint="student1@gmail.com  ·  std123"
       links={[
         { href: '/login', label: 'Admin Login' },
         { href: '/faculty/login', label: 'Faculty Login' },
