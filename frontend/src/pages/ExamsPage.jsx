@@ -863,10 +863,16 @@ export default function ExamsPage() {
                                       <button
                                         type="button"
                                         className={`btn btn-sm ${exam.isPublished ? 'btn-danger' : 'btn-success'}`}
-                                        style={{ fontSize: '0.74rem', padding: '4px 8px' }}
+                                        style={{
+                                          fontSize: '0.74rem', padding: '4px 8px',
+                                          opacity: (!exam.isPublished && !exam.finalSubmittedToAdmin) ? 0.5 : 1,
+                                          cursor: (!exam.isPublished && !exam.finalSubmittedToAdmin) ? 'not-allowed' : 'pointer'
+                                        }}
+                                        disabled={!exam.isPublished && !exam.finalSubmittedToAdmin}
+                                        title={!exam.isPublished && !exam.finalSubmittedToAdmin ? 'Teacher must submit marks to Admin first before results can be published to students' : ''}
                                         onClick={() => handleTogglePublish(exam._id)}
                                       >
-                                        {exam.isPublished ? 'Unpublish' : 'Publish Results'}
+                                        {exam.isPublished ? 'Unpublish' : exam.finalSubmittedToAdmin ? 'Publish Results' : 'Pending Teacher Submit'}
                                       </button>
 
                                       <div style={{ display: 'flex', gap: '6px' }}>
@@ -1015,10 +1021,16 @@ export default function ExamsPage() {
                           <button
                             type="button"
                             className={`btn btn-sm ${exam.isPublished ? 'btn-danger' : 'btn-success'}`}
-                            style={{ fontSize: '0.72rem', padding: '3px 8px' }}
+                            style={{
+                              fontSize: '0.72rem', padding: '3px 8px',
+                              opacity: (!exam.isPublished && !exam.finalSubmittedToAdmin) ? 0.5 : 1,
+                              cursor: (!exam.isPublished && !exam.finalSubmittedToAdmin) ? 'not-allowed' : 'pointer'
+                            }}
+                            disabled={!exam.isPublished && !exam.finalSubmittedToAdmin}
+                            title={!exam.isPublished && !exam.finalSubmittedToAdmin ? 'Teacher must submit marks to Admin first before results can be published to students' : ''}
                             onClick={() => handleTogglePublish(exam._id)}
                           >
-                            {exam.isPublished ? 'Unpublish' : 'Publish'}
+                            {exam.isPublished ? 'Unpublish' : exam.finalSubmittedToAdmin ? 'Publish' : 'Pending'}
                           </button>
 
                           {exam.finalSubmittedToAdmin && (

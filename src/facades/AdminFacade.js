@@ -83,6 +83,12 @@ class AdminFacade {
     const ExamRepository = require('../repositories/ExamRepository');
     const exam = await ExamRepository.findById(examId);
     if (!exam) throw new Error('Exam not found');
+
+    // Only allow publishing if teacher has submitted marks to admin
+    if (!exam.isPublished && !exam.finalSubmittedToAdmin) {
+      throw new Error('Cannot publish results: The faculty evaluator has not submitted final marks to Admin yet.');
+    }
+
     exam.isPublished = !exam.isPublished;
     await exam.save();
     await AuditLogRepository.create({
@@ -291,8 +297,14 @@ class AdminFacade {
     if (!Array.isArray(examIds) || examIds.length === 0) {
       throw new Error('No exam IDs provided for bulk action');
     }
+
+    const filter = { _id: { $in: examIds } };
+    if (isPublished) {
+      filter.finalSubmittedToAdmin = true;
+    }
+
     const updateResult = await Exam.updateMany(
-      { _id: { $in: examIds } },
+      filter,
       { $set: { isPublished } }
     );
     await AuditLogRepository.create({
