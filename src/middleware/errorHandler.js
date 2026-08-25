@@ -1,9 +1,13 @@
 function errorHandler(err, req, res, next) {
   console.error(err);
-  res.status(err.status || 500).json({
+  const isJwtError = err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError';
+  const status = err.status || (isJwtError ? 401 : 500);
+  const message = isJwtError ? 'Session expired or invalid. Please log in again.' : (err.message || 'Internal Server Error');
+  res.status(status).json({
     success: false,
-    message: err.message || 'Internal Server Error'
+    message
   });
 }
 
 module.exports = errorHandler;
+
