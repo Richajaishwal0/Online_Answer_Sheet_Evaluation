@@ -10,10 +10,16 @@ async function facultyAuthMiddleware(req, res, next) {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = verifyToken(token);
+    let decoded;
+    try {
+      decoded = verifyToken(token);
+    } catch (err) {
+      throw new AppError(err.name === 'TokenExpiredError' ? 'Session expired' : 'Invalid token', 401);
+    }
+
     const user = await User.findById(decoded.userId);
 
-    if (!user || (user.role !== 'FACULTY' && user.role !== 'ADMIN')) {
+    if (!user || user.role !== 'FACULTY') {
       throw new AppError('Access denied', 403);
     }
 

@@ -99,10 +99,20 @@ class FacultyService {
         const exam = sheet ? await ExamRepository.findById(sheet.examId) : null;
         sheets[sheetId] = {
           sheetId: sheet?._id || evaluation.sheetId,
+          examId: exam?._id || null,
           studentName: student?.name || 'Unknown',
           registrationNumber: student?.registrationNumber || 'N/A',
+          course: exam?.course || 'General',
+          subject: exam?.subject || 'Unknown Subject',
+          semester: exam?.semester || '',
+          section: exam?.section || '',
+          examType: exam?.examType || '',
+          questionWeightage: exam?.questionWeightage || [],
+          convertedScale: exam?.convertedScale || 30,
           examName: exam ? `${exam.course} / ${exam.subject}` : 'Unknown',
           examContext: exam ? `${exam.semester} ${exam.section} ${exam.examType}` : '',
+          finalSubmittedToAdmin: Boolean(exam?.finalSubmittedToAdmin),
+          isPublished: Boolean(exam?.isPublished),
           questionNumbers: [],
           statuses: [],
           pdfUrl: sheet?.pdfUrl || ''
@@ -123,7 +133,9 @@ class FacultyService {
           ? 'UNLOCK_REQUESTED'
           : item.statuses.includes('DRAFT')
             ? 'DRAFT'
-            : 'PENDING';
+            : item.statuses.includes('SUBMITTED')
+              ? 'COMPLETED'
+              : 'PENDING';
 
       const summary = item.statuses.reduce((acc, value) => {
         acc[value] = (acc[value] || 0) + 1;
@@ -132,10 +144,20 @@ class FacultyService {
 
       return {
         sheetId: item.sheetId,
+        examId: item.examId,
         studentName: item.studentName,
         registrationNumber: item.registrationNumber,
+        course: item.course,
+        subject: item.subject,
+        semester: item.semester,
+        section: item.section,
+        examType: item.examType,
+        questionWeightage: item.questionWeightage,
+        convertedScale: item.convertedScale,
         examName: item.examName,
         examContext: item.examContext,
+        finalSubmittedToAdmin: item.finalSubmittedToAdmin,
+        isPublished: item.isPublished,
         questionRange,
         status,
         evaluationSummary: summary,

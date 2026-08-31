@@ -1,14 +1,14 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { useEffect, useState } from 'react';
 import Layout from './components/Layout';
 import FacultyLayout from './components/FacultyLayout';
+import StudentLayout from './components/StudentLayout';
+import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import FacultyLoginPage from './pages/FacultyLoginPage';
 import DashboardPage from './pages/DashboardPage';
 import FacultyDashboardPage from './pages/FacultyDashboardPage';
 import ExamsPage from './pages/ExamsPage';
 import ImportPage from './pages/ImportPage';
-import DistributionPage from './pages/DistributionPage';
 import UnlockPage from './pages/UnlockPage';
 import AuditLogsPage from './pages/AuditLogsPage';
 import ReportsPage from './pages/ReportsPage';
@@ -19,7 +19,6 @@ import StudentLoginPage from './pages/StudentLoginPage';
 import StudentDashboardPage from './pages/StudentDashboardPage';
 import StudentReportPage from './pages/StudentReportPage';
 import StudentPasswordPage from './pages/StudentPasswordPage';
-import StudentLayout from './components/StudentLayout';
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('adminToken');
@@ -37,36 +36,36 @@ function StudentProtectedRoute({ children }) {
 }
 
 function App() {
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    setIsReady(true);
-  }, []);
-
-  if (!isReady) return null;
-
   return (
     <Routes>
+      {/* Public Landing Page */}
+      <Route path="/" element={<LandingPage />} />
+
+      {/* Authentication Portals */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/faculty/login" element={<FacultyLoginPage />} />
       <Route path="/student/login" element={<StudentLoginPage />} />
+
+
+      {/* Examination Cell Admin Portal */}
       <Route
-        path="/"
         element={
           <ProtectedRoute>
             <Layout />
           </ProtectedRoute>
         }
       >
-        <Route index element={<DashboardPage />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="exams" element={<ExamsPage />} />
-        <Route path="import" element={<ImportPage />} />
-        <Route path="teachers" element={<TeachersPage />} />
-        <Route path="unlock" element={<UnlockPage />} />
-        <Route path="audit-logs" element={<AuditLogsPage />} />
-        <Route path="reports" element={<ReportsPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/exams" element={<ExamsPage />} />
+        <Route path="/import" element={<ImportPage />} />
+        <Route path="/teachers" element={<TeachersPage />} />
+        <Route path="/unlock" element={<UnlockPage />} />
+        <Route path="/audit-logs" element={<AuditLogsPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
       </Route>
+
+      {/* Faculty Evaluator Portal */}
       <Route
         path="/faculty"
         element={
@@ -80,6 +79,8 @@ function App() {
         <Route path="assignments" element={<FacultyAssignmentsPage />} />
         <Route path="evaluate/:sheetId" element={<FacultyEvaluationPage />} />
       </Route>
+
+      {/* Student Portal */}
       <Route
         path="/student"
         element={
@@ -93,9 +94,13 @@ function App() {
         <Route path="report/:sheetId" element={<StudentReportPage />} />
         <Route path="password" element={<StudentPasswordPage />} />
       </Route>
+
+      {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
 
 export default App;
+
+

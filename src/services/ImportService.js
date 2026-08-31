@@ -20,12 +20,21 @@ class ImportService {
     this.equalStrategy = new EqualDistributionStrategy();
   }
 
-  async importFromExcel(fileBuffer) {
+  async parseExcel(fileBuffer) {
     if (!fileBuffer) {
       throw new AppError('No file provided', 400);
     }
-
     const rows = await this.excelAdapter.read(fileBuffer);
+    if (!rows || rows.length === 0) {
+      throw new AppError('Excel file is empty or contains no readable data', 400);
+    }
+    return rows;
+  }
+
+  async importRows(rows) {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new AppError('No data rows provided for import', 400);
+    }
 
     for (const row of rows) {
       const student = await this.ensureStudent(row);
@@ -56,7 +65,12 @@ class ImportService {
     await dashboardObserver.onImportCompleted();
     await auditObserver.onEvent('IMPORT', 'ADMIN', 'Excel import completed');
 
-    return { success: true, message: 'Import completed successfully' };
+    return { success: true, message: `Import completed successfully (${rows.length} records processed)` };
+  }
+
+  async importFromExcel(fileBuffer) {
+    const rows = await this.parseExcel(fileBuffer);
+    return this.importRows(rows);
   }
 
   async ensureStudent(row) {
@@ -77,7 +91,7 @@ class ImportService {
       const normalizedEmail = String(row.studentEmail).trim().toLowerCase();
       let user = await User.findOne({ email: normalizedEmail });
       if (!user) {
-        const pass = normalizedEmail.slice(0, 6);
+        const pass = 'std123';
         const hashedPassword = await bcrypt.hash(pass, 10);
         user = await User.create({
           role: 'STUDENT',
@@ -103,14 +117,19 @@ class ImportService {
       row.examType
     );
 
-    const paperPdf = (row.questionPaperPdfLink || '').replace(/^\/+/, '');
-    const keyPdf = (row.answerKeyPdfLink || '').replace(/^\/+/, '');
+    const paperPdf = (row.questionPaperPdfLink || row.questionPaperUrl || '').replace(/^\/+/, '');
+    const keyPdf = (row.answerKeyPdfLink || row.answerKeyUrl || '').replace(/^\/+/, '');
 
     if (!exam) {
-      const rawMarks = String(row.questionMarks || '')
-        .split(',')
-        .map((item) => Number(item.trim()))
-        .filter((value) => !Number.isNaN(value) && value > 0);
+      let rawMarks = [];
+      if (Array.isArray(row.questionWeightage) && row.questionWeightage.length > 0) {
+        rawMarks = row.questionWeightage;
+      } else if (row.questionMarks) {
+        rawMarks = String(row.questionMarks)
+          .split(',')
+          .map((item) => Number(item.trim()))
+          .filter((value) => !Number.isNaN(value) && value > 0);
+      }
 
       const examTypeLower = String(row.examType || '').toLowerCase();
       const defaultConvertedScale = (examTypeLower.includes('mid') || examTypeLower.includes('internal')) ? 20 : 30;
@@ -122,7 +141,7 @@ class ImportService {
         section: row.section,
         examType: row.examType,
         questionWeightage: rawMarks.length ? rawMarks : [10, 10, 10, 10, 10],
-        convertedScale: defaultConvertedScale,
+        convertedScale: row.convertedScale || defaultConvertedScale,
         questionPaperUrl: paperPdf,
         answerKeyUrl: keyPdf
       });
@@ -145,7 +164,7 @@ class ImportService {
 
     let user = await User.findOne({ email: facultyEmail });
     if (!user) {
-      const pass = facultyEmail.slice(0, 6);
+      const pass = 'faculty123';
       const hashedPassword = await bcrypt.hash(pass, 10);
       user = await User.create({
         role: 'FACULTY',

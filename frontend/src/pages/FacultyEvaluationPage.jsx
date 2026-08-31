@@ -375,7 +375,7 @@ export default function FacultyEvaluationPage() {
                 </div>
               ) : (
                 <div style={{ textAlign: 'center', padding: '10px', background: 'var(--success-bg)', border: '1px solid var(--success-border)', borderRadius: 'var(--radius)', fontSize: '0.78rem', color: 'var(--success)', fontWeight: 600 }}>
-                  🔒 Marks Permanently Locked (Final Submitted to Admin)
+                  Marks Permanently Locked (Final Submitted to Admin)
                 </div>
               )}
             </div>

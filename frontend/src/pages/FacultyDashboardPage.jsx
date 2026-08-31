@@ -135,7 +135,7 @@ export default function FacultyDashboardPage() {
           <div className="dash-progress-banner-fill" style={{ width: `${pct}%` }} />
         </div>
         <div className="dash-progress-banner-counts">
-          <span style={{ color: '#16a34a' }}>✓ {dashboard.completed} done</span>
+          <span style={{ color: '#166534' }}>{dashboard.completed} completed</span>
           <span style={{ color: 'var(--text-muted)' }}>· {dashboard.pending} left</span>
         </div>
       </div>
