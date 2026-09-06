@@ -52,6 +52,20 @@ class FacultyEvaluationService {
 
     const coEvaluators = Array.from(coEvaluatorsMap.values());
 
+    const fullExamMaxMarks = exam?.questionWeightage?.reduce((a, b) => a + Number(b), 0) || 50;
+
+    let coEvaluatorScore = 0;
+    let coEvaluatorMax = 0;
+    allEvaluations.forEach((ev) => {
+      if (ev.facultyId.toString() !== faculty._id.toString()) {
+        if (ev.marksObtained != null && ev.marksObtained !== '') {
+          coEvaluatorScore += Number(ev.marksObtained);
+        }
+        const maxM = exam?.questionWeightage?.[ev.questionNumber - 1];
+        if (maxM != null) coEvaluatorMax += Number(maxM);
+      }
+    });
+
     const formattedMyEvals = myEvaluations
       .map((item) => ({
         evaluationId: item._id,
@@ -70,6 +84,9 @@ class FacultyEvaluationService {
       answerKeyUrl,
       examType: exam ? exam.examType : 'Mid_Term',
       convertedScale,
+      fullExamMaxMarks,
+      coEvaluatorScore,
+      coEvaluatorMax,
       finalSubmittedToAdmin,
       isPublished,
       evaluations: formattedMyEvals,
@@ -236,6 +253,20 @@ class FacultyEvaluationService {
     const exam = await ExamRepository.findById(examId);
     if (!exam) throw new AppError('Exam not found', 404);
 
+    if (exam.courseInChargeFacultyId && exam.courseInChargeFacultyId.toString() !== faculty._id.toString()) {
+      throw new AppError('Only the Course Handling Faculty can publish results for student review.', 403);
+    }
+
+    // Verify all answer sheets for this exam have 100% completed question evaluations across ALL questions
+    const answerSheets = await AnswerSheetRepository.findAll({ examId });
+    for (const sheet of answerSheets) {
+      const evals = await QuestionEvaluationRepository.findAll({ sheetId: sheet._id });
+      const pendingCount = evals.filter((e) => e.marksObtained === null || e.marksObtained === undefined).length;
+      if (pendingCount > 0) {
+        throw new AppError(`Cannot Publish for Review: Co-faculty or section evaluations are incomplete. ${pendingCount} question(s) remain un-evaluated across section papers.`, 400);
+      }
+    }
+
     exam.isPublished = !exam.isPublished;
     await exam.save();
 
@@ -246,6 +277,38 @@ class FacultyEvaluationService {
     });
 
     return { success: true, isPublished: exam.isPublished };
+  }
+
+  async handoverExam(facultyEmail, examId) {
+    const faculty = await FacultyRepository.findOne({ email: facultyEmail });
+    if (!faculty) throw new AppError('Faculty not found', 404);
+
+    const exam = await ExamRepository.findById(examId);
+    if (!exam) throw new AppError('Exam not found', 404);
+
+    // Verify all answer sheets for this exam assigned to this faculty have 100% completed evaluations
+    const answerSheets = await AnswerSheetRepository.findAll({ examId });
+    for (const sheet of answerSheets) {
+      const evals = await QuestionEvaluationRepository.findAll({ sheetId: sheet._id, facultyId: faculty._id });
+      const pendingCount = evals.filter((e) => e.marksObtained === null || e.marksObtained === undefined).length;
+      if (pendingCount > 0) {
+        throw new AppError(`Cannot Handover: You still have un-evaluated papers remaining for this section. Please complete 100% of your assigned questions first.`, 400);
+      }
+    }
+
+    if (!exam.handedOverFacultyIds) exam.handedOverFacultyIds = [];
+    if (!exam.handedOverFacultyIds.some((id) => id.toString() === faculty._id.toString())) {
+      exam.handedOverFacultyIds.push(faculty._id);
+      await exam.save();
+    }
+
+    await AuditLogRepository.create({
+      action: 'FACULTY_HANDOVER_EVALUATION',
+      performedBy: facultyEmail,
+      details: `Handed over paper evaluations for ${exam.course} / ${exam.subject} (${exam.semester} ${exam.section}) to Course In-Charge`
+    });
+
+    return { success: true, message: 'Paper evaluations handed over to Course Handling Faculty successfully.' };
   }
 
   async generateAUMSExport(facultyEmail, examId) {

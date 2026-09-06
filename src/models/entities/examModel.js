@@ -11,6 +11,7 @@ const examSchema = new mongoose.Schema({
   questionPaperUrl: { type: String, default: '' },
   answerKeyUrl: { type: String, default: '' },
   courseInChargeFacultyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Faculty', default: null },
+  handedOverFacultyIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Faculty' }],
   finalSubmittedToAdmin: { type: Boolean, default: false },
   isPublished: { type: Boolean, default: false },
   status: { type: String, default: 'ACTIVE' },

@@ -71,8 +71,16 @@ class FacultyService {
   }
 
   summarizeStatus(evaluations) {
-    const allComplete = evaluations.every((item) => ['SUBMITTED', 'LOCKED', 'UNLOCKED'].includes(item.status));
-    return allComplete ? 'COMPLETED' : 'IN_PROGRESS';
+    if (!evaluations || !evaluations.length) return 'PENDING';
+    const allMarked = evaluations.every((item) => item.marksObtained !== null && item.marksObtained !== undefined && item.marksObtained !== '');
+    const hasCompleteStatus = evaluations.some((item) => ['COMPLETED', 'SUBMITTED', 'LOCKED'].includes(item.status));
+    if (allMarked && hasCompleteStatus) {
+      return 'COMPLETED';
+    }
+    if (evaluations.some((item) => item.status === 'DRAFT' || (item.marksObtained !== null && item.marksObtained !== undefined && item.marksObtained !== ''))) {
+      return 'DRAFT';
+    }
+    return 'PENDING';
   }
 
   countStatuses(evaluations) {
@@ -97,6 +105,21 @@ class FacultyService {
         const sheet = await AnswerSheetRepository.findById(evaluation.sheetId);
         const student = sheet ? await StudentRepository.findById(sheet.studentId) : null;
         const exam = sheet ? await ExamRepository.findById(sheet.examId) : null;
+        let courseInChargeName = 'Course In-Charge';
+        let allCoEvaluatorsHandedOver = true;
+        if (exam) {
+          if (exam.courseInChargeFacultyId) {
+            const inChargeFac = await FacultyRepository.findById(exam.courseInChargeFacultyId);
+            if (inChargeFac) courseInChargeName = inChargeFac.name;
+          }
+          const examAllocations = await QuestionAllocationRepository.findByExam(exam._id);
+          const examFacultyIds = Array.from(new Set(examAllocations.map(a => a.facultyId.toString())));
+          const inChargeId = exam.courseInChargeFacultyId ? exam.courseInChargeFacultyId.toString() : null;
+          const coEvaluatorIds = examFacultyIds.filter(id => id !== inChargeId);
+          const handedOverIds = (exam.handedOverFacultyIds || []).map(id => id.toString());
+          allCoEvaluatorsHandedOver = coEvaluatorIds.length === 0 || coEvaluatorIds.every(id => handedOverIds.includes(id));
+        }
+
         sheets[sheetId] = {
           sheetId: sheet?._id || evaluation.sheetId,
           examId: exam?._id || null,
@@ -113,28 +136,40 @@ class FacultyService {
           examContext: exam ? `${exam.semester} ${exam.section} ${exam.examType}` : '',
           finalSubmittedToAdmin: Boolean(exam?.finalSubmittedToAdmin),
           isPublished: Boolean(exam?.isPublished),
+          courseInChargeFacultyId: exam?.courseInChargeFacultyId || null,
+          courseInChargeName,
+          isCourseInCharge: Boolean(exam?.courseInChargeFacultyId && exam.courseInChargeFacultyId.toString() === faculty._id.toString()),
+          handedOverFacultyIds: (exam?.handedOverFacultyIds || []).map((id) => id.toString()),
+          isHandedOver: Boolean((exam?.handedOverFacultyIds || []).some((id) => id.toString() === faculty._id.toString())),
+          allCoEvaluatorsHandedOver,
           questionNumbers: [],
           statuses: [],
+          marks: [],
           pdfUrl: sheet?.pdfUrl || ''
         };
       }
 
       sheets[sheetId].questionNumbers.push(evaluation.questionNumber);
       sheets[sheetId].statuses.push(evaluation.status);
+      sheets[sheetId].marks.push(evaluation.marksObtained);
     }
 
     return Object.values(sheets).map((item) => {
       const questionRange = item.questionNumbers.length
         ? `Q${Math.min(...item.questionNumbers)} to Q${Math.max(...item.questionNumbers)}`
         : 'N/A';
+
+      const allMarked = item.marks.length > 0 && item.marks.every((m) => m !== null && m !== undefined && m !== '');
+      const hasCompletedStatus = item.statuses.some((s) => ['COMPLETED', 'SUBMITTED', 'LOCKED'].includes(s));
+
       const status = item.statuses.includes('LOCKED')
         ? 'LOCKED'
         : item.statuses.includes('UNLOCK_REQUESTED')
           ? 'UNLOCK_REQUESTED'
-          : item.statuses.includes('DRAFT')
-            ? 'DRAFT'
-            : item.statuses.includes('SUBMITTED')
-              ? 'COMPLETED'
+          : (allMarked && hasCompletedStatus) || item.statuses.every((s) => ['COMPLETED', 'SUBMITTED', 'LOCKED'].includes(s))
+            ? 'COMPLETED'
+            : item.statuses.includes('DRAFT') || item.marks.some((m) => m !== null && m !== undefined && m !== '')
+              ? 'DRAFT'
               : 'PENDING';
 
       const summary = item.statuses.reduce((acc, value) => {
@@ -158,6 +193,12 @@ class FacultyService {
         examContext: item.examContext,
         finalSubmittedToAdmin: item.finalSubmittedToAdmin,
         isPublished: item.isPublished,
+        courseInChargeFacultyId: item.courseInChargeFacultyId,
+        courseInChargeName: item.courseInChargeName,
+        isCourseInCharge: item.isCourseInCharge,
+        handedOverFacultyIds: item.handedOverFacultyIds,
+        isHandedOver: item.isHandedOver,
+        allCoEvaluatorsHandedOver: item.allCoEvaluatorsHandedOver,
         questionRange,
         status,
         evaluationSummary: summary,

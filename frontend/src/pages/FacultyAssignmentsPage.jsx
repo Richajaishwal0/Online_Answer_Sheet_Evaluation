@@ -156,6 +156,22 @@ export default function FacultyAssignmentsPage() {
     }
   };
 
+  const handleHandover = async (examId) => {
+    try {
+      setActionMessage('');
+      setErrorMessage('');
+      const res = await axios.post(
+        `/api/faculty/exams/${examId}/handover`,
+        {},
+        { headers: { Authorization: `Bearer ${localStorage.getItem('facultyToken')}` } }
+      );
+      setActionMessage(res.data.data?.message || 'Paper evaluations handed over to Course Handling Faculty successfully.');
+      await load();
+    } catch (err) {
+      setErrorMessage(err.response?.data?.message || 'Handover failed.');
+    }
+  };
+
   const handleExportAUMS = async (examId, examName) => {
     try {
       const res = await axios.get(`/api/faculty/exams/${examId}/export-aums`, {
@@ -265,6 +281,11 @@ export default function FacultyAssignmentsPage() {
           examType: item.examType,
           finalSubmittedToAdmin: item.finalSubmittedToAdmin,
           isPublished: item.isPublished,
+          isCourseInCharge: item.isCourseInCharge,
+          courseInChargeName: item.courseInChargeName,
+          handedOverFacultyIds: item.handedOverFacultyIds || [],
+          isHandedOver: item.isHandedOver,
+          allCoEvaluatorsHandedOver: item.allCoEvaluatorsHandedOver,
           sheets: []
         });
       }
@@ -709,12 +730,15 @@ export default function FacultyAssignmentsPage() {
                                     borderBottom: '1px solid var(--border)'
                                   }}>
                                     <div>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
                                         <span className="badge badge-maroon" style={{ fontSize: '0.78rem', fontWeight: 700 }}>
                                           Sem {cohort.semester} &nbsp;·&nbsp; Sec {cohort.section}
                                         </span>
                                         <span className="badge badge-gray" style={{ fontSize: '0.72rem' }}>
                                           {cohort.examType}
+                                        </span>
+                                        <span className={`badge ${cohort.isCourseInCharge ? 'badge-maroon' : 'badge-blue'}`} style={{ fontSize: '0.72rem' }}>
+                                          {cohort.isCourseInCharge ? 'Course Handling Faculty (In-Charge)' : `Co-Evaluator (In-Charge: ${cohort.courseInChargeName || 'Faculty'})`}
                                         </span>
                                         <span className={`badge ${cohort.finalSubmittedToAdmin ? 'badge-amber' : 'badge-blue'}`} style={{ fontSize: '0.72rem' }}>
                                           {cohort.finalSubmittedToAdmin ? 'Final Submitted to Admin (Locked)' : 'Valuation In-Progress'}
@@ -736,55 +760,81 @@ export default function FacultyAssignmentsPage() {
                                       </div>
                                     </div>
 
-                                    {/* Course In-Charge Actions */}
-                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                      {/* Publish for Student Review */}
-                                      <button
-                                        type="button"
-                                        className={`btn btn-sm ${cohort.isPublished ? 'btn-danger' : 'btn-success'}`}
-                                        disabled={cohort.finalSubmittedToAdmin}
-                                        onClick={() => handleTogglePublish(cohort.examId)}
-                                        style={{
-                                          fontSize: '0.74rem', padding: '5px 10px',
-                                          opacity: cohort.finalSubmittedToAdmin ? 0.5 : 1,
-                                          cursor: cohort.finalSubmittedToAdmin ? 'not-allowed' : 'pointer'
-                                        }}
-                                      >
-                                        {cohort.isPublished ? 'Unpublish Student Review' : 'Publish for Student Review'}
-                                      </button>
+                                    {/* Actions: Restricted to Course Handling Faculty */}
+                                    {cohort.isCourseInCharge ? (
+                                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                        {/* Publish for Student Review */}
+                                        <button
+                                          type="button"
+                                          className={`btn btn-sm ${cohort.isPublished ? 'btn-danger' : 'btn-success'}`}
+                                          disabled={cohort.finalSubmittedToAdmin || (!cohort.isPublished && (cohort.completedCount < cohort.totalCount || !cohort.allCoEvaluatorsHandedOver))}
+                                          onClick={() => handleTogglePublish(cohort.examId)}
+                                          style={{
+                                            fontSize: '0.74rem', padding: '5px 10px',
+                                            opacity: cohort.finalSubmittedToAdmin || (!cohort.isPublished && (cohort.completedCount < cohort.totalCount || !cohort.allCoEvaluatorsHandedOver)) ? 0.5 : 1,
+                                            cursor: cohort.finalSubmittedToAdmin || (!cohort.isPublished && (cohort.completedCount < cohort.totalCount || !cohort.allCoEvaluatorsHandedOver)) ? 'not-allowed' : 'pointer'
+                                          }}
+                                          title={!cohort.isPublished && (cohort.completedCount < cohort.totalCount || !cohort.allCoEvaluatorsHandedOver) ? (!cohort.allCoEvaluatorsHandedOver ? 'Cannot publish: Co-faculty has not handed over paper evaluations for this section yet.' : 'Cannot publish: You must complete 100% of your assigned questions first.') : ''}
+                                        >
+                                          {cohort.isPublished ? 'Unpublish Student Review' : 'Publish for Student Review'}
+                                        </button>
 
-                                      {/* Submit to Admin */}
-                                      <button
-                                        type="button"
-                                        className="btn btn-sm btn-primary"
-                                        onClick={() => handleFinalSubmit(cohort.examId)}
-                                        disabled={cohort.finalSubmittedToAdmin || !cohort.isPublished}
-                                        style={{
-                                          fontSize: '0.74rem', padding: '5px 10px',
-                                          opacity: (cohort.finalSubmittedToAdmin || !cohort.isPublished) ? 0.5 : 1,
-                                          cursor: (cohort.finalSubmittedToAdmin || !cohort.isPublished) ? 'not-allowed' : 'pointer'
-                                        }}
-                                        title={!cohort.isPublished ? 'You must Publish for Student Review first before submitting to Admin' : ''}
-                                      >
-                                        {cohort.finalSubmittedToAdmin ? 'Submitted to Admin' : 'Submit to Admin'}
-                                      </button>
+                                        {/* Submit to Admin */}
+                                        <button
+                                          type="button"
+                                          className="btn btn-sm btn-primary"
+                                          onClick={() => handleFinalSubmit(cohort.examId)}
+                                          disabled={cohort.finalSubmittedToAdmin || !cohort.isPublished}
+                                          style={{
+                                            fontSize: '0.74rem', padding: '5px 10px',
+                                            opacity: (cohort.finalSubmittedToAdmin || !cohort.isPublished) ? 0.5 : 1,
+                                            cursor: (cohort.finalSubmittedToAdmin || !cohort.isPublished) ? 'not-allowed' : 'pointer'
+                                          }}
+                                          title={!cohort.isPublished ? 'You must Publish for Student Review first before submitting to Admin' : ''}
+                                        >
+                                          {cohort.finalSubmittedToAdmin ? 'Submitted to Admin' : 'Submit to Admin'}
+                                        </button>
 
-                                      {/* Export AUMS Excel */}
-                                      <button
-                                        type="button"
-                                        className="btn btn-sm btn-secondary"
-                                        onClick={() => handleExportAUMS(cohort.examId, cohort.examName)}
-                                        disabled={!cohort.finalSubmittedToAdmin}
-                                        style={{
-                                          fontSize: '0.74rem', padding: '5px 10px',
-                                          opacity: !cohort.finalSubmittedToAdmin ? 0.5 : 1,
-                                          cursor: !cohort.finalSubmittedToAdmin ? 'not-allowed' : 'pointer'
-                                        }}
-                                        title={!cohort.finalSubmittedToAdmin ? 'You must Submit marks to Admin first before downloading Excel report' : ''}
-                                      >
-                                        <DownloadIcon /> Export AUMS Excel
-                                      </button>
-                                    </div>
+                                        {/* Export AUMS Excel */}
+                                        <button
+                                          type="button"
+                                          className="btn btn-sm btn-secondary"
+                                          onClick={() => handleExportAUMS(cohort.examId, cohort.examName)}
+                                          disabled={!cohort.finalSubmittedToAdmin}
+                                          style={{
+                                            fontSize: '0.74rem', padding: '5px 10px',
+                                            opacity: !cohort.finalSubmittedToAdmin ? 0.5 : 1,
+                                            cursor: !cohort.finalSubmittedToAdmin ? 'not-allowed' : 'pointer'
+                                          }}
+                                          title={!cohort.finalSubmittedToAdmin ? 'You must Submit marks to Admin first before downloading Excel report' : ''}
+                                        >
+                                          <DownloadIcon /> Export AUMS Excel
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        {cohort.isHandedOver ? (
+                                          <span className="badge badge-green" style={{ padding: '6px 12px', fontSize: '0.74rem' }}>
+                                            Handed Over to Course In-Charge ({cohort.courseInChargeName || 'Course Handling Faculty'}) ✅
+                                          </span>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            className="btn btn-sm btn-primary"
+                                            onClick={() => handleHandover(cohort.examId)}
+                                            disabled={cohort.completedCount < cohort.totalCount}
+                                            style={{
+                                              fontSize: '0.74rem', padding: '6px 12px',
+                                              opacity: cohort.completedCount < cohort.totalCount ? 0.5 : 1,
+                                              cursor: cohort.completedCount < cohort.totalCount ? 'not-allowed' : 'pointer'
+                                            }}
+                                            title={cohort.completedCount < cohort.totalCount ? 'All assigned section papers must be 100% evaluated before handing over' : ''}
+                                          >
+                                            Handover Evaluation to Course In-Charge ({cohort.courseInChargeName || 'Course Handling Faculty'}) 🤝
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
 
                                   {/* Answer Sheets Table */}

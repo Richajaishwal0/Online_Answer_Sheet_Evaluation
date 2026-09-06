@@ -3,11 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 
 const STATUS_BADGE = {
+  'VALUATION COMPLETED': 'badge-green',
   LOCKED: 'badge-green',
-  UNLOCK_REQUESTED: 'badge-amber',
-  DRAFT: 'badge-blue',
   COMPLETED: 'badge-green',
   SUBMITTED: 'badge-green',
+  UNLOCK_REQUESTED: 'badge-amber',
+  DRAFT: 'badge-blue',
   PENDING: 'badge-gray',
 };
 
@@ -47,6 +48,10 @@ export default function FacultyEvaluationPage() {
   const [loading, setLoading] = useState(true);
   const [remarkOpen, setRemarkOpen] = useState({});
 
+  const [fullExamMaxMarks, setFullExamMaxMarks] = useState(50);
+  const [coEvaluatorScore, setCoEvaluatorScore] = useState(0);
+  const [coEvaluatorMax, setCoEvaluatorMax] = useState(0);
+
   const [panelWidths, setPanelWidths] = useState({ left: 35, center: 35, right: 30 });
   const [isDragging, setIsDragging] = useState(null);
   
@@ -71,6 +76,9 @@ export default function FacultyEvaluationPage() {
       setSheetPdfUrl(d.sheetPdfUrl || null);
       setAnswerKeyUrl(d.answerKeyUrl || null);
       setExamType(d.examType || 'Mid_Term');
+      setFullExamMaxMarks(d.fullExamMaxMarks || 50);
+      setCoEvaluatorScore(d.coEvaluatorScore || 0);
+      setCoEvaluatorMax(d.coEvaluatorMax || 0);
       setFinalSubmittedToAdmin(Boolean(d.finalSubmittedToAdmin));
       if (d.convertedScale) setTargetScale(d.convertedScale);
     } catch (err) {
@@ -87,10 +95,13 @@ export default function FacultyEvaluationPage() {
 
   const statusSummary = useMemo(() => {
     if (!rows.length) return 'PENDING';
-    if (rows.some(r => r.status === 'LOCKED')) return 'LOCKED';
+    const allMarked = rows.every(r => r.marksObtained !== null && r.marksObtained !== undefined && r.marksObtained !== '');
+    const hasSubmitted = rows.some(r => r.status === 'LOCKED' || r.status === 'COMPLETED' || r.status === 'SUBMITTED');
+    if (allMarked && hasSubmitted) return 'VALUATION COMPLETED';
+    if (rows.some(r => r.status === 'LOCKED')) return 'VALUATION COMPLETED';
     if (rows.some(r => r.status === 'UNLOCK_REQUESTED')) return 'UNLOCK_REQUESTED';
-    if (rows.some(r => r.status === 'SUBMITTED')) return 'SUBMITTED';
-    if (rows.some(r => r.status === 'COMPLETED')) return 'COMPLETED';
+    if (rows.some(r => r.status === 'SUBMITTED')) return 'VALUATION COMPLETED';
+    if (rows.some(r => r.status === 'COMPLETED')) return 'VALUATION COMPLETED';
     if (rows.some(r => r.status === 'DRAFT')) return 'DRAFT';
     return 'PENDING';
   }, [rows]);
@@ -134,14 +145,35 @@ export default function FacultyEvaluationPage() {
   [rows]);
 
   const totals = useMemo(() => {
-    let rawObtained = 0, rawMax = 0;
+    let myObtained = 0, myMax = 0;
     rows.forEach(r => {
-      if (r.maxMark != null) rawMax += Number(r.maxMark);
-      if (r.marksObtained != null && r.marksObtained !== '') rawObtained += Number(r.marksObtained);
+      if (r.maxMark != null) myMax += Number(r.maxMark);
+      if (r.marksObtained != null && r.marksObtained !== '') myObtained += Number(r.marksObtained);
     });
+
+    const cumulativeObtained = (coEvaluatorScore || 0) + myObtained;
+    const fullMax = fullExamMaxMarks || (myMax + (coEvaluatorMax || 0)) || 50;
     const scale = Number(targetScale) || 30;
-    return { rawObtained, rawMax, scale, convertedScore: Math.round(rawMax > 0 ? (rawObtained / rawMax) * scale : 0) };
-  }, [rows, targetScale]);
+    const convertedScore = Math.round(fullMax > 0 ? (cumulativeObtained / fullMax) * scale : 0);
+
+    const passThreshold = Math.ceil(scale * 0.40);
+    const marksNeededToPass = passThreshold - convertedScore;
+    const nearPass = marksNeededToPass > 0 && marksNeededToPass <= 3;
+
+    return {
+      myObtained,
+      myMax,
+      coEvaluatorScore,
+      coEvaluatorMax,
+      cumulativeObtained,
+      fullMax,
+      scale,
+      convertedScore,
+      passThreshold,
+      nearPass,
+      marksNeededToPass
+    };
+  }, [rows, coEvaluatorScore, coEvaluatorMax, fullExamMaxMarks, targetScale]);
 
   const handleDraft = async () => {
     if (hasErrors) { setErrorMessage('Fix validation errors before saving.'); return; }
@@ -157,7 +189,7 @@ export default function FacultyEvaluationPage() {
   };
 
   const handleSubmit = async () => {
-    if (!allEvaluated) { setErrorMessage('All questions must be marked before submitting.'); return; }
+    if (!allEvaluated) { setErrorMessage('All questions must be marked before completing valuation.'); return; }
     if (hasErrors) { setErrorMessage('Fix validation errors before submitting.'); return; }
     try {
       setMessage(''); setErrorMessage('');
@@ -165,9 +197,9 @@ export default function FacultyEvaluationPage() {
         { updates: rows.map(r => ({ evaluationId: r.evaluationId, marksObtained: r.marksObtained, review: r.review })) },
         { headers: { Authorization: `Bearer ${localStorage.getItem('facultyToken')}` } }
       );
-      setMessage('Evaluation submitted successfully.');
+      setMessage('Valuation completed successfully.');
       await load();
-    } catch (err) { setErrorMessage(err.response?.data?.message || 'Unable to submit evaluation.'); }
+    } catch (err) { setErrorMessage(err.response?.data?.message || 'Unable to complete evaluation.'); }
   };
 
   useEffect(() => {
@@ -387,9 +419,19 @@ export default function FacultyEvaluationPage() {
           {rows.length > 0 && (
             <div style={{ borderTop: '1px solid var(--border)', padding: '12px', flexShrink: 0, background: 'white' }}>
               <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px', marginBottom: '10px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Raw Score</span>
-                  <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{totals.rawObtained} / {totals.rawMax}</span>
+                {totals.coEvaluatorMax > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    <span>Co-Evaluator Marks:</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{totals.coEvaluatorScore} / {totals.coEvaluatorMax}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                  <span>My Marks Portion:</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{totals.myObtained} / {totals.myMax}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', paddingTop: '6px', borderTop: '1px dashed var(--border)' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Total Exam Raw Score</span>
+                  <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{totals.cumulativeObtained} / {totals.fullMax}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', paddingBottom: '10px', borderBottom: '1px solid var(--border)', marginBottom: '10px' }}>
                   <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Convert to</span>
@@ -402,17 +444,22 @@ export default function FacultyEvaluationPage() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--amrita-maroon)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Converted Score</span>
-                  <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--amrita-maroon)', fontVariantNumeric: 'tabular-nums' }}>{totals.convertedScore} / {totals.scale}</span>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--amrita-maroon)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Converted Total Score</span>
+                  <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--amrita-maroon)', fontVariantNumeric: 'tabular-nums' }}>{totals.convertedScore} / {totals.scale}</span>
                 </div>
+                {totals.nearPass && (
+                  <div style={{ marginTop: '8px', padding: '6px 10px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '4px', fontSize: '0.7rem', color: '#92400e', fontWeight: 600 }}>
+                    💡 Moderation Notice: Student is {totals.marksNeededToPass} mark(s) short of passing ({totals.passThreshold}/{totals.scale}).
+                  </div>
+                )}
               </div>
 
               {!finalSubmittedToAdmin ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <button className="btn btn-primary btn-full" onClick={handleSubmit} disabled={hasErrors || !allEvaluated} style={{ opacity: hasErrors || !allEvaluated ? 0.5 : 1 }}>
-                    Submit Marks for Student Review
+                    Complete Evaluation
                   </button>
-                  {!allEvaluated && <p style={{ fontSize: '0.72rem', color: 'var(--warning)', textAlign: 'center', margin: 0 }}>All questions must be marked before submission.</p>}
+                  {!allEvaluated && <p style={{ fontSize: '0.72rem', color: 'var(--warning)', textAlign: 'center', margin: 0 }}>All questions must be marked before completing valuation.</p>}
                   <button className="btn btn-ghost btn-full" onClick={handleDraft} disabled={hasErrors}>Save Draft</button>
                 </div>
               ) : (

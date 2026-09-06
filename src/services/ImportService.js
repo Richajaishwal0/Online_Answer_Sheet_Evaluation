@@ -231,19 +231,30 @@ class ImportService {
       return;
     }
 
-    const mappings = await FacultyMappingRepository.findByExamContext(
+    // Fetch all faculty teaching this subject in this semester across all sections
+    let mappings = await FacultyMappingRepository.findBySubjectAndSemester(
       exam.course,
       exam.subject,
       exam.semester,
-      exam.section,
       exam.examType
     );
+
+    if (!mappings || mappings.length === 0) {
+      mappings = await FacultyMappingRepository.findByExamContext(
+        exam.course,
+        exam.subject,
+        exam.semester,
+        exam.section,
+        exam.examType
+      );
+    }
 
     if (!mappings || mappings.length === 0) {
       return;
     }
 
-    const facultyIds = mappings.map((mapping) => mapping.facultyId.toString());
+    // Deduplicate faculty IDs across sections
+    const facultyIds = Array.from(new Set(mappings.map((mapping) => mapping.facultyId.toString())));
     const allocations = this.equalStrategy.distribute(exam.questionWeightage, facultyIds);
 
     for (const allocation of allocations) {

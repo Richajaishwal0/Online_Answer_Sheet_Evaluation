@@ -136,6 +136,15 @@ router.get('/exams/:examId/export-aums', facultyAuthMiddleware, async (req, res,
   }
 });
 
+router.post('/exams/:examId/handover', facultyAuthMiddleware, async (req, res, next) => {
+  try {
+    const result = await facultyEvaluationService.handoverExam(req.user.email, req.params.examId);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/change-password', facultyAuthMiddleware, async (req, res, next) => {
   try {
     const { oldPassword, newPassword } = req.body;

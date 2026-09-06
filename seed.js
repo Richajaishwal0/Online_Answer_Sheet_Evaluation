@@ -115,6 +115,20 @@ async function seed() {
     isPublished: false
   });
 
+  const dbmsSecBExam = await Exam.create({
+    course: 'CSE',
+    subject: 'DBMS',
+    semester: '3',
+    section: 'B',
+    examType: 'Mid_Term',
+    questionWeightage: [10, 10, 10, 5, 5, 5, 5], // Total 50 marks
+    convertedScale: 20,
+    questionPaperUrl: 'uploads/pdfs/QuestionPaper_3_DBMS_Mid_Term.pdf',
+    answerKeyUrl: 'uploads/pdfs/AnswerKey_3_DBMS_Mid_Term.pdf',
+    courseInChargeFacultyId: fac2._id,
+    isPublished: false
+  });
+
   const osExam = await Exam.create({
     course: 'CSE',
     subject: 'OS',
@@ -129,7 +143,7 @@ async function seed() {
     isPublished: false
   });
 
-  // 5. Seed Faculty Mappings
+  // 5. Seed Faculty Mappings (DBMS: Dr. A for Sec A, Dr. B for Sec B)
   await FacultyMapping.create({
     course: 'CSE',
     subject: 'DBMS',
@@ -142,7 +156,7 @@ async function seed() {
     course: 'CSE',
     subject: 'DBMS',
     semester: '3',
-    section: 'A',
+    section: 'B',
     examType: 'Mid_Term',
     facultyId: fac2._id
   });
@@ -155,7 +169,7 @@ async function seed() {
     facultyId: fac1._id
   });
 
-  // 6. Seed Question Allocations (DBMS: Q1-Q3 to Dr. A, Q4-Q7 to Dr. B. OS: Q1-Q5 to Dr. A)
+  // 6. Seed Question Allocations (DBMS Sec A & B: Q1-Q3 to Dr. A, Q4-Q7 to Dr. B)
   await QuestionAllocation.create({
     examId: dbmsExam._id,
     facultyId: fac1._id,
@@ -165,6 +179,20 @@ async function seed() {
   });
   await QuestionAllocation.create({
     examId: dbmsExam._id,
+    facultyId: fac2._id,
+    fromQuestion: 4,
+    toQuestion: 7,
+    allocationType: 'EQUAL'
+  });
+  await QuestionAllocation.create({
+    examId: dbmsSecBExam._id,
+    facultyId: fac1._id,
+    fromQuestion: 1,
+    toQuestion: 3,
+    allocationType: 'EQUAL'
+  });
+  await QuestionAllocation.create({
+    examId: dbmsSecBExam._id,
     facultyId: fac2._id,
     fromQuestion: 4,
     toQuestion: 7,
@@ -186,8 +214,8 @@ async function seed() {
   });
 
   const sheet2 = await AnswerSheet.create({
-    studentId: studentEntities[1]._id, // Student 2
-    examId: dbmsExam._id,
+    studentId: studentEntities[1]._id, // Student 2 (Sec B)
+    examId: dbmsSecBExam._id,
     pdfUrl: 'uploads/pdfs/CH.SC.U4CSE23004_3_DBMS_Mid_Term.pdf'
   });
 
