@@ -68,6 +68,7 @@ class FacultyEvaluationService {
       sheetPdfUrl: sheet.pdfUrl || '',
       questionPaperUrl,
       answerKeyUrl,
+      examType: exam ? exam.examType : 'Mid_Term',
       convertedScale,
       finalSubmittedToAdmin,
       isPublished,
@@ -205,6 +206,14 @@ class FacultyEvaluationService {
       const pendingCount = evals.filter((e) => e.marksObtained === null || e.marksObtained === undefined).length;
       if (pendingCount > 0) {
         throw new AppError(`Cannot perform Final Submit: Student answer sheet ${sheet._id} still has ${pendingCount} un-evaluated question(s).`, 400);
+      }
+    }
+
+    for (const sheet of answerSheets) {
+      const evals = await QuestionEvaluationRepository.findAll({ sheetId: sheet._id });
+      for (const evaluation of evals) {
+        evaluation.status = 'SUBMITTED';
+        await evaluation.save();
       }
     }
 

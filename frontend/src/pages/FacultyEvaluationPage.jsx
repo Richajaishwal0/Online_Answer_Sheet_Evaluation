@@ -6,6 +6,8 @@ const STATUS_BADGE = {
   LOCKED: 'badge-green',
   UNLOCK_REQUESTED: 'badge-amber',
   DRAFT: 'badge-blue',
+  COMPLETED: 'badge-green',
+  SUBMITTED: 'badge-green',
   PENDING: 'badge-gray',
 };
 
@@ -35,8 +37,10 @@ export default function FacultyEvaluationPage() {
   const containerRef = useRef(null);
 
   const [rows, setRows] = useState([]);
+  const [questionPaperUrl, setQuestionPaperUrl] = useState(null);
   const [sheetPdfUrl, setSheetPdfUrl] = useState(null);
   const [answerKeyUrl, setAnswerKeyUrl] = useState(null);
+  const [examType, setExamType] = useState('Mid_Term');
   const [targetScale, setTargetScale] = useState(30);
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -45,6 +49,9 @@ export default function FacultyEvaluationPage() {
 
   const [panelWidths, setPanelWidths] = useState({ left: 35, center: 35, right: 30 });
   const [isDragging, setIsDragging] = useState(null);
+  
+  const [paperZoom, setPaperZoom] = useState(100);
+  const [paperRotate, setPaperRotate] = useState(0);
   const [sheetZoom, setSheetZoom] = useState(100);
   const [sheetRotate, setSheetRotate] = useState(0);
   const [keyZoom, setKeyZoom] = useState(100);
@@ -60,8 +67,10 @@ export default function FacultyEvaluationPage() {
       });
       const d = res.data.data || {};
       setRows(d.evaluations || []);
+      setQuestionPaperUrl(d.questionPaperUrl || null);
       setSheetPdfUrl(d.sheetPdfUrl || null);
       setAnswerKeyUrl(d.answerKeyUrl || null);
+      setExamType(d.examType || 'Mid_Term');
       setFinalSubmittedToAdmin(Boolean(d.finalSubmittedToAdmin));
       if (d.convertedScale) setTargetScale(d.convertedScale);
     } catch (err) {
@@ -71,10 +80,17 @@ export default function FacultyEvaluationPage() {
 
   useEffect(() => { load(); }, [sheetId]);
 
+  const isMidTerm = useMemo(() => {
+    const t = String(examType || '').toLowerCase();
+    return t.includes('mid') || t.includes('internal');
+  }, [examType]);
+
   const statusSummary = useMemo(() => {
     if (!rows.length) return 'PENDING';
     if (rows.some(r => r.status === 'LOCKED')) return 'LOCKED';
     if (rows.some(r => r.status === 'UNLOCK_REQUESTED')) return 'UNLOCK_REQUESTED';
+    if (rows.some(r => r.status === 'SUBMITTED')) return 'SUBMITTED';
+    if (rows.some(r => r.status === 'COMPLETED')) return 'COMPLETED';
     if (rows.some(r => r.status === 'DRAFT')) return 'DRAFT';
     return 'PENDING';
   }, [rows]);
@@ -87,12 +103,9 @@ export default function FacultyEvaluationPage() {
     return window.location.port === '5173' ? `http://localhost:3000/${url}` : url;
   };
 
-  
-  
+  const questionPaperPreviewUrl = useMemo(() => resolvePdfUrl(questionPaperUrl), [questionPaperUrl]);
   const sheetPreviewUrl = useMemo(() => resolvePdfUrl(sheetPdfUrl), [sheetPdfUrl]);
   const answerKeyPreviewUrl = useMemo(() => resolvePdfUrl(answerKeyUrl), [answerKeyUrl]);
-  
-  // console.log(sheetPreviewUrl);
 
   const updateRow = (id, field, value) =>
     setRows(cur => cur.map(r => r.evaluationId === id ? { ...r, [field]: value } : r));
@@ -152,20 +165,9 @@ export default function FacultyEvaluationPage() {
         { updates: rows.map(r => ({ evaluationId: r.evaluationId, marksObtained: r.marksObtained, review: r.review })) },
         { headers: { Authorization: `Bearer ${localStorage.getItem('facultyToken')}` } }
       );
-      setMessage('Evaluation submitted and locked successfully.');
+      setMessage('Evaluation submitted successfully.');
       await load();
     } catch (err) { setErrorMessage(err.response?.data?.message || 'Unable to submit evaluation.'); }
-  };
-
-  const handleUnlock = async () => {
-    try {
-      setMessage(''); setErrorMessage('');
-      await axios.post(`/api/faculty/evaluations/sheet/${sheetId}/request-unlock`, {},
-        { headers: { Authorization: `Bearer ${localStorage.getItem('facultyToken')}` } }
-      );
-      setMessage('Unlock request submitted to the Examination Cell.');
-      await load();
-    } catch (err) { setErrorMessage(err.response?.data?.message || 'Unable to request unlock.'); }
   };
 
   useEffect(() => {
@@ -203,6 +205,9 @@ export default function FacultyEvaluationPage() {
           <div>
             <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>Evaluation Workspace</span>
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '8px', fontFamily: 'monospace' }}>{sheetId}</span>
+            <span className="badge badge-maroon" style={{ marginLeft: '10px', fontSize: '0.68rem' }}>
+              {isMidTerm ? 'MID TERM (3-PANEL VIEW)' : 'END SEM (4-PANEL VIEW)'}
+            </span>
           </div>
         </div>
         <span className={`badge ${STATUS_BADGE[statusSummary] || 'badge-gray'}`}>{statusSummary}</span>
@@ -220,10 +225,45 @@ export default function FacultyEvaluationPage() {
         </div>
       )}
 
-      {/* 3-panel resizable layout */}
-      <div ref={containerRef} style={{ display: 'grid', gridTemplateColumns: `${panelWidths.left}% 5px ${panelWidths.center}% 5px ${panelWidths.right}%`, flex: 1, overflow: 'hidden' }}>
+      {/* Dynamic Panel Grid Layout */}
+      <div
+        ref={containerRef}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: isMidTerm
+            ? `${panelWidths.left}% 5px ${panelWidths.center}% 5px ${panelWidths.right}%`
+            : '24% 4px 26% 4px 24% 4px 22%',
+          flex: 1,
+          overflow: 'hidden'
+        }}
+      >
 
-        {/* Panel 1 — Answer Sheet */}
+        {/* Panel 1 — Question Paper */}
+        <div style={{ display: 'flex', flexDirection: 'column', background: 'white', overflow: 'hidden', borderRight: '1px solid var(--border)' }}>
+          <PdfControls label="Question Paper" zoom={paperZoom}
+            onZoomIn={() => setPaperZoom(z => Math.min(z + 15, 200))}
+            onZoomOut={() => setPaperZoom(z => Math.max(z - 15, 50))}
+            onRotate={() => setPaperRotate(r => (r + 90) % 360)}
+          />
+          <div style={{ flex: 1, overflow: 'auto', background: '#3d3d3d', display: 'flex', justifyContent: 'center', padding: '8px' }}>
+            {questionPaperPreviewUrl ? (
+              <iframe title="Question Paper" src={questionPaperPreviewUrl}
+                style={{ width: `${paperZoom}%`, minHeight: '600px', border: 'none', transform: `rotate(${paperRotate}deg)`, transition: 'transform 0.2s' }}
+              />
+            ) : (
+              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.82rem', padding: '40px', textAlign: 'center', alignSelf: 'center' }}>
+                No Question Paper PDF available
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Resizer 1 */}
+        <div onMouseDown={() => setIsDragging('left')}
+          style={{ cursor: 'col-resize', background: isDragging === 'left' ? 'var(--amrita-maroon)' : 'var(--border)', transition: 'background 0.15s' }}
+        />
+
+        {/* Panel 2 — Student Answer Sheet */}
         <div style={{ display: 'flex', flexDirection: 'column', background: 'white', overflow: 'hidden', borderRight: '1px solid var(--border)' }}>
           <PdfControls label="Student Answer Sheet" zoom={sheetZoom}
             onZoomIn={() => setSheetZoom(z => Math.min(z + 15, 200))}
@@ -237,43 +277,45 @@ export default function FacultyEvaluationPage() {
               />
             ) : (
               <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.82rem', padding: '40px', textAlign: 'center', alignSelf: 'center' }}>
-                No answer sheet PDF available
+                No Student Answer Sheet PDF available
               </div>
             )}
           </div>
         </div>
 
-        {/* Resizer 1 */}
-        <div onMouseDown={() => setIsDragging('left')}
-          style={{ cursor: 'col-resize', background: isDragging === 'left' ? 'var(--amrita-maroon)' : 'var(--border)', transition: 'background 0.15s' }}
-        />
-
-        {/* Panel 2 — Answer Key */}
-        <div style={{ display: 'flex', flexDirection: 'column', background: 'white', overflow: 'hidden', borderRight: '1px solid var(--border)' }}>
-          <PdfControls label="Official Answer Key" zoom={keyZoom}
-            onZoomIn={() => setKeyZoom(z => Math.min(z + 15, 200))}
-            onZoomOut={() => setKeyZoom(z => Math.max(z - 15, 50))}
-            onRotate={() => setKeyRotate(r => (r + 90) % 360)}
-          />
-          <div style={{ flex: 1, overflow: 'auto', background: '#3d3d3d', display: 'flex', justifyContent: 'center', padding: '8px' }}>
-            {answerKeyPreviewUrl ? (
-              <iframe title="Official Answer Key" src={answerKeyPreviewUrl}
-                style={{ width: `${keyZoom}%`, minHeight: '600px', border: 'none', transform: `rotate(${keyRotate}deg)`, transition: 'transform 0.2s' }}
-              />
-            ) : (
-              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.82rem', padding: '40px', textAlign: 'center', alignSelf: 'center' }}>
-                No answer key PDF available
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Resizer 2 */}
+        {/* Resizer 2 (For Mid-Term split or End-Sem panel 3) */}
         <div onMouseDown={() => setIsDragging('right')}
           style={{ cursor: 'col-resize', background: isDragging === 'right' ? 'var(--amrita-maroon)' : 'var(--border)', transition: 'background 0.15s' }}
         />
 
-        {/* Panel 3 — Evaluation form */}
+        {/* Panel 3 — Official Answer Key (ONLY displayed for End-Sem / End-Term Exams) */}
+        {!isMidTerm && (
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', background: 'white', overflow: 'hidden', borderRight: '1px solid var(--border)' }}>
+              <PdfControls label="Official Answer Key" zoom={keyZoom}
+                onZoomIn={() => setKeyZoom(z => Math.min(z + 15, 200))}
+                onZoomOut={() => setKeyZoom(z => Math.max(z - 15, 50))}
+                onRotate={() => setKeyRotate(r => (r + 90) % 360)}
+              />
+              <div style={{ flex: 1, overflow: 'auto', background: '#3d3d3d', display: 'flex', justifyContent: 'center', padding: '8px' }}>
+                {answerKeyPreviewUrl ? (
+                  <iframe title="Official Answer Key" src={answerKeyPreviewUrl}
+                    style={{ width: `${keyZoom}%`, minHeight: '600px', border: 'none', transform: `rotate(${keyRotate}deg)`, transition: 'transform 0.2s' }}
+                  />
+                ) : (
+                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.82rem', padding: '40px', textAlign: 'center', alignSelf: 'center' }}>
+                    No Official Answer Key PDF available
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Resizer 3 (For 4th panel in End-Sem) */}
+            <div style={{ cursor: 'col-resize', background: 'var(--border)' }} />
+          </>
+        )}
+
+        {/* Final Panel — Question Evaluation Form */}
         <div style={{ display: 'flex', flexDirection: 'column', background: 'white', overflow: 'hidden' }}>
           <div style={{ padding: '8px 14px', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
             <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -304,8 +346,8 @@ export default function FacultyEvaluationPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>MAX</span>
                           <input type="number" value={row.maxMark ?? ''} onChange={e => updateMax(row.evaluationId, e.target.value)}
-                            disabled={isLockedOrRequested} min={1} step="1"
-                            style={{ width: '46px', padding: '2px 6px', fontSize: '0.75rem', fontWeight: 700, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', textAlign: 'center', outline: 'none', background: isLockedOrRequested ? 'var(--bg-subtle)' : 'white', color: 'var(--text-primary)' }}
+                            disabled={finalSubmittedToAdmin} min={1} step="1"
+                            style={{ width: '46px', padding: '2px 6px', fontSize: '0.75rem', fontWeight: 700, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', textAlign: 'center', outline: 'none', background: finalSubmittedToAdmin ? 'var(--bg-subtle)' : 'white', color: 'var(--text-primary)' }}
                           />
                         </div>
                       </div>
@@ -314,10 +356,10 @@ export default function FacultyEvaluationPage() {
                           <input className="form-input" type="number" value={row.marksObtained ?? ''}
                             placeholder={`0 – ${row.maxMark ?? 'max'}`}
                             onChange={e => updateRow(row.evaluationId, 'marksObtained', e.target.value === '' ? null : Math.round(Number(e.target.value)))}
-                            disabled={isLockedOrRequested} min={0} max={row.maxMark ?? undefined} step="1"
-                            style={{ flex: 1, borderColor: err ? 'var(--error)' : undefined, background: isLockedOrRequested ? 'var(--bg-subtle)' : 'white', fontSize: '0.875rem', padding: '6px 10px' }}
+                            disabled={finalSubmittedToAdmin} min={0} max={row.maxMark ?? undefined} step="1"
+                            style={{ flex: 1, borderColor: err ? 'var(--error)' : undefined, background: finalSubmittedToAdmin ? 'var(--bg-subtle)' : 'white', fontSize: '0.875rem', padding: '6px 10px' }}
                           />
-                          {!isLockedOrRequested && (
+                          {!finalSubmittedToAdmin && (
                             <button type="button" onClick={() => toggleRemark(row.evaluationId)}
                               style={{ flexShrink: 0, padding: '6px 10px', fontSize: '0.7rem', fontWeight: 600, border: `1px solid ${showRemark ? 'var(--amrita-maroon)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: showRemark ? 'var(--accent-light)' : 'var(--bg-subtle)', color: showRemark ? 'var(--amrita-maroon)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                               {showRemark ? '− Note' : '+ Note'}
@@ -331,7 +373,7 @@ export default function FacultyEvaluationPage() {
                             style={{ resize: 'none', fontSize: '0.78rem', padding: '6px 10px' }}
                           />
                         )}
-                        {isLockedOrRequested && row.review && (
+                        {finalSubmittedToAdmin && row.review && (
                           <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0, fontStyle: 'italic' }}>{row.review}</p>
                         )}
                       </div>

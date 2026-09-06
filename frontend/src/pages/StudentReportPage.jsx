@@ -5,7 +5,8 @@ import axios from 'axios';
 function resolvePdfUrl(url) {
   if (!url) return null;
   if (/^(https?:)?\/\//.test(url)) return url;
-  return window.location.port === '5173' ? `http://localhost:3000${url}` : url;
+  const normalizedUrl = `/${String(url).replace(/^\/+/, '')}`;
+  return window.location.port === '5173' ? `http://localhost:3000${normalizedUrl}` : normalizedUrl;
 }
 
 const statusCfg = (s) => {

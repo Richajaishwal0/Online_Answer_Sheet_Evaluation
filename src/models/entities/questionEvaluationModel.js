@@ -5,7 +5,7 @@ const questionEvaluationSchema = new mongoose.Schema({
   questionNumber: { type: Number, required: true },
   marksObtained: { type: Number, default: null },
   review: { type: String, default: null },
-  status: { type: String, default: 'PENDING', enum: ['PENDING', 'DRAFT', 'SUBMITTED', 'LOCKED', 'UNLOCK_REQUESTED', 'UNLOCKED'] },
+  status: { type: String, default: 'PENDING', enum: ['PENDING', 'DRAFT', 'COMPLETED', 'SUBMITTED', 'LOCKED', 'UNLOCK_REQUESTED', 'UNLOCKED'] },
   facultyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Faculty', required: true },
   evaluatorSubmitted: { type: Boolean, default: false },
   updatedAt: { type: Date, default: Date.now }
